@@ -1,0 +1,9 @@
+{
+	"name": "jwt",
+	"authors": [
+		"Zelalem Mekonen"
+	],
+	"description": "A Simple D implementation of JSON Web Tokens",
+	"copyright": "Copyright © 2016, Zelalem Mekonen",
+	"license": "MIT"
+}
