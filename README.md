@@ -1,3 +1,5 @@
+<a href="https://code.dlang.org/packages/jwt" title="Go to jwt"><img src="https://img.shields.io/dub/v/jwt.svg" alt="Dub version"></a>
+
 # JWT
 
 A Simple D implementation of JSON Web Tokens.
