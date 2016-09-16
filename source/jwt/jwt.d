@@ -6,6 +6,7 @@ import std.stdio;
 import std.conv;
 import std.string;
 import std.datetime;
+import std.exception;
 import std.array : split;
 import std.algorithm : count;
 
@@ -389,38 +390,32 @@ public:
         }
 
         if ((this.claims.exp != ulong.init && this.claims.nbf != ulong.init) && this.claims.exp < this.claims.nbf) {
-            throw new ExpiresBeforeValidException("Token will expired before it becomes valid");
+            throw new ExpiresBeforeValidException("Token will expire before it becomes valid");
         }
 
         return this.data ~ "." ~ this.signature(secret);
 
     }
-
     ///
     unittest {
 
-        JSONValue data = ["id": "0123456789", "username": "zola"];
+        Token token = new Token(JWTAlgorithm.HS512);
 
-        Claims c = new Claims(data);
+        long now = Clock.currTime.toUnixTime();
 
-        c.iss = "https://we.are";
+        string secret = "super_secret";
 
-        c.iat = Clock.currTime().toUnixTime();
+        token.claims.exp = now - 3600;
 
-        c.exp = Clock.currTime().toUnixTime() + (60 * 60);
+        assertThrown!ExpiredException(token.encode(secret));
 
-        c.nbf = Clock.currTime().toUnixTime() + (10 * 60);
+        token.claims.exp = now + 3600;
 
-        Token t = new Token(c, JWTAlgorithm.NONE);
+        token.claims.nbf = now + 7200;
 
-        string encodedToken = t.encode("super");
-
-        assert(encodedToken.length > 0);
-
-        assert(split(encodedToken, ".").length == 3);
+        assertThrown!ExpiresBeforeValidException(token.encode(secret));
 
     }
-
 }
 
 private Token decode(string encodedToken) {
@@ -462,6 +457,8 @@ Token verify(string encodedToken, string secret) {
 
     Token token = decode(encodedToken);
 
+    long now = Clock.currTime.toUnixTime();
+
     string signature = split(encodedToken, ".")[2];
 
     if (signature != token.signature(secret)) {
@@ -472,30 +469,53 @@ Token verify(string encodedToken, string secret) {
         throw new VerifyException("Algorithm set to none while secret is provided");
     }
 
-    if (token.claims.exp != ulong.init && token.claims.exp < Clock.currTime().toUnixTime()) {
+    if (token.claims.exp != ulong.init && token.claims.exp < now) {
         throw new ExpiredException("Token has expired");
+    }
+
+    if (token.claims.nbf != ulong.init && token.claims.nbf > now) {
+        throw new NotBeforeException("Token is not valid yet");
     }
 
     return token;
 
 }
 
-///
 unittest {
 
-    string encodedToken = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE0NzM3OTIyMDAsImlkIjoiMDEyMzQ1Njc4OSIsImlzcyI6Imh0dHBzOlwvXC9kZXZpYW50LmlvXC8iLCJ1c2VybmFtZSI6InpvbGEifQ.yXD_gOOsrPtEtHaBaYM2drZxIhOwLWzuxbHKREqzhJpP9vTS5YdPzvGbEPkHa5DwLjjr-PZJYwA8c3vcAvtJ3Q";
+    string secret = "super_secret";
 
-    try {
+    long now = Clock.currTime.toUnixTime();
 
-        Token token = verify(encodedToken, "super");
+    Token token = new Token(JWTAlgorithm.HS512);
 
-        // work with verified and decoded token here
+    token.claims.nbf = now + (60 * 60);
 
-    } catch (VerifyException e) {
+    string encodedToken = token.encode(secret);
 
-        // handle exception here
+    assertThrown!NotBeforeException(token = verify(encodedToken, secret));
 
-    }
+    token.claims.nbf = 0;
+
+    token.claims.iat = now - 3600;
+
+    token.claims.exp = now - 60;
+
+    encodedToken = token.encode(secret);
+
+    assertThrown!ExpiredException(token = verify(encodedToken, secret));
+
+    token = new Token(JWTAlgorithm.NONE);
+
+    encodedToken = token.encode(secret);
+
+    assertThrown!VerifyException(token = verify(encodedToken, secret));
+
+    token = new Token(JWTAlgorithm.HS512);
+
+    encodedToken = token.encode(secret) ~ "we_are";
+
+    assertThrown!InvalidSignature(token = verify(encodedToken, secret));
 
 }
 
@@ -511,6 +531,8 @@ Token verify(string encodedToken, string secret, JWTAlgorithm alg) {
 
     Token token = decode(encodedToken);
 
+    long now = Clock.currTime.toUnixTime();
+
     if (token.header.alg != alg) {
         throw new InvalidAlgorithmException("Token was signed with " ~ token.header.alg ~ " algorithm while provided algorithm was " ~ alg);
     }
@@ -525,30 +547,53 @@ Token verify(string encodedToken, string secret, JWTAlgorithm alg) {
         throw new VerifyException("Algorithm set to none while secret is provided");
     }
 
-    if (token.claims.exp != ulong.init && token.claims.exp < Clock.currTime().toUnixTime()) {
+    if (token.claims.exp != ulong.init && token.claims.exp < now) {
         throw new ExpiredException("Token has expired");
+    }
+
+    if (token.claims.nbf != ulong.init && token.claims.nbf > now) {
+        throw new NotBeforeException("Token is not valid yet");
     }
 
     return token;
 
 }
 
-///
 unittest {
 
-    string encodedToken = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE0NzM3OTIyMDAsImlkIjoiMDEyMzQ1Njc4OSIsImlzcyI6Imh0dHBzOlwvXC9kZXZpYW50LmlvXC8iLCJ1c2VybmFtZSI6InpvbGEifQ.yXD_gOOsrPtEtHaBaYM2drZxIhOwLWzuxbHKREqzhJpP9vTS5YdPzvGbEPkHa5DwLjjr-PZJYwA8c3vcAvtJ3Q";
+    string secret = "super_secret";
 
-    try {
+    long now = Clock.currTime.toUnixTime();
 
-        Token token = verify(encodedToken, "super", JWTAlgorithm.HS512);
+    Token token = new Token(JWTAlgorithm.HS512);
 
-        // work with verified and decoded token here
+    token.claims.nbf = now + (60 * 60);
 
-    } catch (VerifyException e) {
+    string encodedToken = token.encode(secret);
 
-        // handle exception here
+    assertThrown!NotBeforeException(token = verify(encodedToken, secret, JWTAlgorithm.HS512));
 
-    }
+    token.claims.nbf = 0;
+
+    token.claims.iat = now - 3600;
+
+    token.claims.exp = now - 60;
+
+    encodedToken = token.encode(secret);
+
+    assertThrown!ExpiredException(token = verify(encodedToken, secret, JWTAlgorithm.HS512));
+
+    token = new Token(JWTAlgorithm.NONE);
+
+    encodedToken = token.encode(secret);
+
+    assertThrown!VerifyException(token = verify(encodedToken, secret, JWTAlgorithm.HS512));
+
+    token = new Token(JWTAlgorithm.HS512);
+
+    encodedToken = token.encode(secret) ~ "we_are";
+
+    assertThrown!InvalidSignature(token = verify(encodedToken, secret, JWTAlgorithm.HS512));
 
 }
 
@@ -562,29 +607,40 @@ Token verify(string encodedToken) {
 
     Token token = decode(encodedToken);
 
-    if (token.claims.exp != ulong.init && token.claims.exp < Clock.currTime().toUnixTime()) {
+    long now = Clock.currTime.toUnixTime();
+
+    if (token.claims.exp != ulong.init && token.claims.exp < now) {
         throw new ExpiredException("Token has expired");
+    }
+
+    if (token.claims.nbf != ulong.init && token.claims.nbf > now) {
+        throw new NotBeforeException("Token is not valid yet");
     }
 
     return token;
 
 }
-
 ///
 unittest {
 
-    string encodedToken = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE0NzM3OTIyMDAsImlkIjoiMDEyMzQ1Njc4OSIsImlzcyI6Imh0dHBzOlwvXC9kZXZpYW50LmlvXC8iLCJ1c2VybmFtZSI6InpvbGEifQ.yXD_gOOsrPtEtHaBaYM2drZxIhOwLWzuxbHKREqzhJpP9vTS5YdPzvGbEPkHa5DwLjjr-PZJYwA8c3vcAvtJ3Q";
+    long now = Clock.currTime.toUnixTime();
 
-    try {
+    Token token = new Token(JWTAlgorithm.NONE);
 
-        Token token = verify(encodedToken);
+    token.claims.nbf = now + (60 * 60);
 
-        // work with verified and decoded token here
+    string encodedToken = token.encode("");
 
-    } catch (VerifyException e) {
+    assertThrown!NotBeforeException(token = verify(encodedToken));
 
-        // handle exception here
+    token.claims.nbf = 0;
 
-    }
+    token.claims.iat = now - 3600;
+
+    token.claims.exp = now - 60;
+
+    encodedToken = token.encode("");
+
+    assertThrown!ExpiredException(token = verify(encodedToken));
 
 }

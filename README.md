@@ -1,3 +1,5 @@
+<a href="https://code.dlang.org/packages/jwt" title="Go to jwt"><img src="https://img.shields.io/dub/v/jwt.svg" alt="Dub version"></a>
+
 # JWT
 
 A Simple D implementation of JSON Web Tokens.
@@ -7,6 +9,9 @@ A Simple D implementation of JSON Web Tokens.
 - HS256
 - HS384
 - HS512
+
+# What's New
+- added nbf(not before) validation.
 
 # How To Use
 ## Encoding
@@ -49,6 +54,10 @@ A Simple D implementation of JSON Web Tokens.
         } catch (InvalidSignature e) {
 
             writeln("This token has been tampered with");
+
+        } catch (NotBeforeException e) {
+
+            writeln("Token is not valid yet");
 
         } catch (ExpiredException e) {
 

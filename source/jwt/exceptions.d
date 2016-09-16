@@ -55,6 +55,16 @@ class ExpiredException : VerifyException {
 }
 
 /**
+* thrown when the token is not valid yet
+* or in other words when the nbf claim time is before the current time
+*/
+class NotBeforeException : VerifyException {
+    this(string s) {
+        super(s);
+    }
+}
+
+/**
 * thrown when the token has an incorrect format
 */
 class MalformedToken : InvalidTokenException {
