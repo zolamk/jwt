@@ -30,7 +30,7 @@ class InvalidTokenException : VerifyException {
 /**
 * thrown when the tokens signature doesn't match the data signature
 */
-class InvalidSignature : VerifyException {
+class InvalidSignatureException : VerifyException {
     this(string s) {
         super(s);
     }

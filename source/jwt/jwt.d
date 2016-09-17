@@ -416,6 +416,16 @@ public:
         assertThrown!ExpiresBeforeValidException(token.encode(secret));
 
     }
+
+    /**
+    * overload of the encode(string secret) function to simplify encoding of token without algorithm none
+    * Returns: base64 representation of the token
+    */
+    string encode() {
+        assert(this.header.alg == JWTAlgorithm.NONE);
+        return this.encode("");
+    }
+
 }
 
 private Token decode(string encodedToken) {
@@ -447,79 +457,6 @@ private Token decode(string encodedToken) {
 }
 
 /**
-* verifies the tokens is valid
-* Params:
-*       encodedToken = the encoded token
-*       secret = the secret key used to sign the token
-* Returns: a decoded Token
-*/
-Token verify(string encodedToken, string secret) {
-
-    Token token = decode(encodedToken);
-
-    long now = Clock.currTime.toUnixTime();
-
-    string signature = split(encodedToken, ".")[2];
-
-    if (signature != token.signature(secret)) {
-        throw new InvalidSignature("Signature Match Failed");
-    }
-
-    if (token.header.alg == JWTAlgorithm.NONE) {
-        throw new VerifyException("Algorithm set to none while secret is provided");
-    }
-
-    if (token.claims.exp != ulong.init && token.claims.exp < now) {
-        throw new ExpiredException("Token has expired");
-    }
-
-    if (token.claims.nbf != ulong.init && token.claims.nbf > now) {
-        throw new NotBeforeException("Token is not valid yet");
-    }
-
-    return token;
-
-}
-
-unittest {
-
-    string secret = "super_secret";
-
-    long now = Clock.currTime.toUnixTime();
-
-    Token token = new Token(JWTAlgorithm.HS512);
-
-    token.claims.nbf = now + (60 * 60);
-
-    string encodedToken = token.encode(secret);
-
-    assertThrown!NotBeforeException(token = verify(encodedToken, secret));
-
-    token.claims.nbf = 0;
-
-    token.claims.iat = now - 3600;
-
-    token.claims.exp = now - 60;
-
-    encodedToken = token.encode(secret);
-
-    assertThrown!ExpiredException(token = verify(encodedToken, secret));
-
-    token = new Token(JWTAlgorithm.NONE);
-
-    encodedToken = token.encode(secret);
-
-    assertThrown!VerifyException(token = verify(encodedToken, secret));
-
-    token = new Token(JWTAlgorithm.HS512);
-
-    encodedToken = token.encode(secret) ~ "we_are";
-
-    assertThrown!InvalidSignature(token = verify(encodedToken, secret));
-
-}
-
-/**
 * verifies the tokens is valid, using the algorithm given instead of the alg field in the claims
 * Params:
 *       encodedToken = the encoded token
@@ -527,20 +464,30 @@ unittest {
 *       alg = the algorithm to be used to verify the token
 * Returns: a decoded Token
 */
-Token verify(string encodedToken, string secret, JWTAlgorithm alg) {
+Token verify(string encodedToken, string secret, JWTAlgorithm[] algs) {
 
     Token token = decode(encodedToken);
 
     long now = Clock.currTime.toUnixTime();
 
-    if (token.header.alg != alg) {
-        throw new InvalidAlgorithmException("Token was signed with " ~ token.header.alg ~ " algorithm while provided algorithm was " ~ alg);
+    bool algorithmAllowed = false;
+
+    foreach(index, alg; algs) {
+
+        if(token.header.alg == alg) {
+            algorithmAllowed = true;
+        }
+
+    }
+
+    if (!algorithmAllowed) {
+        throw new InvalidAlgorithmException("Algorithm " ~ token.header.alg ~ " is not in the allowed algorithms field");
     }
 
     string signature = split(encodedToken, ".")[2];
 
     if (signature != token.signature(secret)) {
-        throw new InvalidSignature("Signature Match Failed");
+        throw new InvalidSignatureException("Signature Match Failed");
     }
 
     if (token.header.alg == JWTAlgorithm.NONE) {
@@ -571,9 +518,9 @@ unittest {
 
     string encodedToken = token.encode(secret);
 
-    assertThrown!NotBeforeException(token = verify(encodedToken, secret, JWTAlgorithm.HS512));
+    assertThrown!NotBeforeException(verify(encodedToken, secret, [JWTAlgorithm.HS512]));
 
-    token.claims.nbf = 0;
+    token = new Token(JWTAlgorithm.HS512);
 
     token.claims.iat = now - 3600;
 
@@ -581,19 +528,25 @@ unittest {
 
     encodedToken = token.encode(secret);
 
-    assertThrown!ExpiredException(token = verify(encodedToken, secret, JWTAlgorithm.HS512));
+    assertThrown!ExpiredException(verify(encodedToken, secret, [JWTAlgorithm.HS512]));
 
     token = new Token(JWTAlgorithm.NONE);
 
     encodedToken = token.encode(secret);
 
-    assertThrown!VerifyException(token = verify(encodedToken, secret, JWTAlgorithm.HS512));
+    assertThrown!VerifyException(verify(encodedToken, secret, [JWTAlgorithm.HS512]));
 
     token = new Token(JWTAlgorithm.HS512);
 
     encodedToken = token.encode(secret) ~ "we_are";
 
-    assertThrown!InvalidSignature(token = verify(encodedToken, secret, JWTAlgorithm.HS512));
+    assertThrown!InvalidSignatureException(verify(encodedToken, secret, [JWTAlgorithm.HS512]));
+
+    token = new Token(JWTAlgorithm.HS512);
+
+    encodedToken = token.encode(secret);
+
+    assertThrown!InvalidAlgorithmException(verify(encodedToken, secret, [JWTAlgorithm.HS256, JWTAlgorithm.HS384]));
 
 }
 
@@ -629,17 +582,17 @@ unittest {
 
     token.claims.nbf = now + (60 * 60);
 
-    string encodedToken = token.encode("");
+    string encodedToken = token.encode();
 
-    assertThrown!NotBeforeException(token = verify(encodedToken));
+    assertThrown!NotBeforeException(verify(encodedToken));
 
-    token.claims.nbf = 0;
+    token = new Token(JWTAlgorithm.NONE);
 
     token.claims.iat = now - 3600;
 
     token.claims.exp = now - 60;
 
-    encodedToken = token.encode("");
+    encodedToken = token.encode();
 
     assertThrown!ExpiredException(token = verify(encodedToken));
 
