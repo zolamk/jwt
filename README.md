@@ -13,6 +13,7 @@ A Simple D implementation of JSON Web Tokens.
 #### This library uses [semantic versioning 2.0.0][3]
 
 # What's New
+- added support for `arrays` and `objects` in claims
 - removed `verify` function that doesn't take algorithm type, see why [here][4]
 - changed `verify` function to take an array of algorithms to support multiple algorithms
 - renamed `InvalidSignature` to `InvalidSignatureException`
@@ -22,14 +23,19 @@ A Simple D implementation of JSON Web Tokens.
 
     import jwt.jwt;
     import jwt.algorithms;
+    import std.json;
 
     void main() {
+
+        JSONValue user = ["id": JSONValue(60119), "uri": JSONValue("https://api.we.are/60119")];
 
         Token token = new Token(JWTAlgorithm.HS512);
 
         token.claims.exp = Clock.currTime.toUnixTime();
 
-        token.claims.set("id", 60119);
+        token.claims.set("user", user);
+
+        token.claims.set("data", [JSONValue("zm"), JSONValue(58718)]);
 
         string encodedToken = token.encode("supersecret");
 
@@ -52,6 +58,22 @@ A Simple D implementation of JSON Web Tokens.
             Token token = verify(encodedToken, "supersecret", [JWTAlgorithm.HS512, JWTAlgorithm.HS256]);
 
             writeln(token.claims.getInt("id"));
+
+            JSONValue user = token.claims.getObject("user");
+
+            JSONValue[] a = token.claims.getArray("data");
+
+            long userID = user["id"].integer();
+
+            string uri = user["uri"].str();
+
+            writeln(userID);
+
+            writeln(uri);
+
+            writeln(a[0].str());
+
+            writeln(a[1].integer());
 
         } catch (InvalidAlgorithmException e) {
 
@@ -124,7 +146,6 @@ A Simple D implementation of JSON Web Tokens.
 # Limitations
 
 - ##### Since Phobos doesn't(hopefully yet) support RSA algorithms this library only provides HMAC signing.
-- ##### Currently this library only supports primitive data types(bool, string, int, float, double, null) in claims(working to remedy the situation)
 
 # Note
 this library uses code and ideas from [jwtd][1] and [jwt-go][2]

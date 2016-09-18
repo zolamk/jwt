@@ -112,6 +112,45 @@ public:
     /**
     * Params:
     *       name = the name of the claim
+    * Returns: an array of JSONValue
+    */
+    JSONValue[] getArray(string name) {
+
+        try {
+
+            return this.data[name].array();
+
+        } catch (JSONException e) {
+
+            return [];
+
+        }
+
+    }
+
+
+    /**
+    * Params:
+    *       name = the name of the claim
+    * Returns: a JSONValue
+    */
+    JSONValue[string] getObject(string name) {
+
+        try {
+
+            return this.data[name].object();
+
+        } catch (JSONException e) {
+
+            return JSONValue.Store.object.init;
+
+        }
+
+    }
+
+    /**
+    * Params:
+    *       name = the name of the claim
     * Returns: returns a long representation of the claim if it exists and is an
     *          integer or the initial value for long if doesn't exist or is not an integer
     */
