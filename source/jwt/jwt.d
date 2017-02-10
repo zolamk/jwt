@@ -122,7 +122,7 @@ public:
 
         } catch (JSONException e) {
 
-            return [];
+            return JSONValue.Store.array.init;
 
         }
 
